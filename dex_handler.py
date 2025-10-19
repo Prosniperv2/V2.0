@@ -4,8 +4,12 @@ from typing import Dict, List, Optional, Tuple
 import requests
 import time
 import asyncio
+from colorama import Fore, Style, init
 from config import *
 from rate_limiter import BASE_RPC_LIMITER, with_rate_limit
+
+# Inicializar colorama
+init(autoreset=True)
 
 class DEXHandler:
     def __init__(self, web3: Web3):
