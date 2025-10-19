@@ -31,9 +31,9 @@ MAX_TRADE_PERCENTAGE = float(os.getenv('MAX_TRADE_PERCENTAGE', '30'))  # Máximo
 MIN_TRADE_AMOUNT = float(os.getenv('MIN_TRADE_AMOUNT', '0.000050'))  # Mínimo para trades pequenos
 
 # Modo de Emergência para Saldos Baixos
-EMERGENCY_MODE_THRESHOLD = float(os.getenv('EMERGENCY_MODE_THRESHOLD', '0.0001'))  # Ativar modo emergência se ETH < 0.0001
-EMERGENCY_TRADE_AMOUNT = float(os.getenv('EMERGENCY_TRADE_AMOUNT', '0.000050'))  # Trade mínimo em modo emergência
-EMERGENCY_GAS_PRICE = int(os.getenv('EMERGENCY_GAS_PRICE', '10'))  # Gas price reduzido em emergência
+EMERGENCY_MODE_THRESHOLD = float(os.getenv('EMERGENCY_MODE_THRESHOLD', '0.00001'))  # Ativar modo emergência se ETH < 0.00001
+EMERGENCY_TRADE_AMOUNT = float(os.getenv('EMERGENCY_TRADE_AMOUNT', '0.000020'))  # Trade ULTRA mínimo em modo emergência
+EMERGENCY_GAS_PRICE = int(os.getenv('EMERGENCY_GAS_PRICE', '1'))  # Gas price ULTRA baixo em emergência (0.1 gwei)
 BALANCE_GROWTH_THRESHOLD = float(os.getenv('BALANCE_GROWTH_THRESHOLD', '0.003980'))  # Quando dobrar trade size
 
 # Configurações de Trading Inteligente - MODO AGRESSIVO PARA CRESCIMENTO RÁPIDO

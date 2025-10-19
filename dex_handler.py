@@ -210,7 +210,7 @@ class DEXHandler:
                     
         return 0.0
     
-    async def convert_weth_to_eth_if_needed(self, min_eth_needed: float = 0.0001) -> bool:
+    async def convert_weth_to_eth_if_needed(self, min_eth_needed: float = 0.00001) -> bool:
         """
         Converte WETH para ETH se o saldo de ETH estiver muito baixo
         """
@@ -237,19 +237,19 @@ class DEXHandler:
                 weth_balance = weth_contract.functions.balanceOf(WALLET_ADDRESS).call()
                 weth_balance_eth = float(web3_instance.from_wei(weth_balance, 'ether'))
                 
-                # Calcular quanto WETH converter (mínimo 0.0001 ETH)
-                eth_needed = max(min_eth_needed - eth_balance_eth, 0.0001)
+                # Calcular quanto WETH converter (mínimo 0.00002 ETH para gas ultra baixo)
+                eth_needed = max(min_eth_needed - eth_balance_eth, 0.00002)
                 if weth_balance_eth >= eth_needed:
                     # Converter WETH para ETH
                     withdraw_amount = int(web3_instance.to_wei(eth_needed, 'ether'))
                     
                     print(f"💱 Convertendo {eth_needed:.6f} WETH para ETH...")
                     
-                    # Preparar transação de withdraw
+                    # Preparar transação de withdraw com gas ULTRA baixo
                     withdraw_tx = weth_contract.functions.withdraw(withdraw_amount).build_transaction({
                         'from': WALLET_ADDRESS,
-                        'gas': 50000,  # Gas baixo para withdraw
-                        'gasPrice': web3_instance.to_wei(2, 'gwei'),  # Gas price baixo mas suficiente
+                        'gas': 30000,  # Gas mínimo para withdraw
+                        'gasPrice': web3_instance.to_wei(0.1, 'gwei'),  # Gas price ULTRA baixo
                         'nonce': web3_instance.eth.get_transaction_count(WALLET_ADDRESS)
                     })
                     
@@ -443,7 +443,7 @@ class DEXHandler:
             
             eth_balance = web3_instance.eth.get_balance(WALLET_ADDRESS)
             eth_balance_eth = web3_instance.from_wei(eth_balance, 'ether')
-            min_eth_for_gas = 0.0005  # Aumentado para Base Network
+            min_eth_for_gas = 0.00001  # ULTRA baixo para saldos críticos
             
             if eth_balance_eth < min_eth_for_gas:
                 if not await self.convert_weth_to_eth_if_needed(min_eth_for_gas):
