@@ -10,6 +10,7 @@ except:
 
 # Base Network Configuration
 BASE_RPC_URL = os.getenv('BASE_RPC_URL', 'https://mainnet.base.org')
+BASE_RPC_BACKUP = os.getenv('BASE_RPC_BACKUP', 'https://base-mainnet.public.blastapi.io')
 CHAIN_ID = int(os.getenv('CHAIN_ID', '8453'))
 
 # Wallet Configuration
@@ -28,6 +29,11 @@ SMART_SCALING_ENABLED = os.getenv('SMART_SCALING_ENABLED', 'true').lower() == 't
 PROFIT_REINVESTMENT_RATE = float(os.getenv('PROFIT_REINVESTMENT_RATE', '0.6'))  # 60% dos lucros reinvestidos (mais agressivo)
 MAX_TRADE_PERCENTAGE = float(os.getenv('MAX_TRADE_PERCENTAGE', '30'))  # Máximo 30% do saldo por trade (agressivo)
 MIN_TRADE_AMOUNT = float(os.getenv('MIN_TRADE_AMOUNT', '0.000050'))  # Mínimo para trades pequenos
+
+# Modo de Emergência para Saldos Baixos
+EMERGENCY_MODE_THRESHOLD = float(os.getenv('EMERGENCY_MODE_THRESHOLD', '0.0001'))  # Ativar modo emergência se ETH < 0.0001
+EMERGENCY_TRADE_AMOUNT = float(os.getenv('EMERGENCY_TRADE_AMOUNT', '0.000050'))  # Trade mínimo em modo emergência
+EMERGENCY_GAS_PRICE = int(os.getenv('EMERGENCY_GAS_PRICE', '10'))  # Gas price reduzido em emergência
 BALANCE_GROWTH_THRESHOLD = float(os.getenv('BALANCE_GROWTH_THRESHOLD', '0.003980'))  # Quando dobrar trade size
 
 # Configurações de Trading Inteligente - MODO AGRESSIVO PARA CRESCIMENTO RÁPIDO

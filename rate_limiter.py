@@ -75,12 +75,12 @@ class SmartRateLimiter:
                 self.current_backoff = 0
                 print("✅ Rate limit recuperado")
 
-# Configurações ULTRA otimizadas para Base Network (máxima agressividade)
+# Configurações OTIMIZADAS para Base Network (evitar 429 errors)
 BASE_RPC_LIMITER = SmartRateLimiter(RateLimitConfig(
-    max_requests=50,  # 50 requisições por janela (ultra agressivo)
+    max_requests=15,  # 15 requisições por janela (evitar rate limit)
     time_window=60,   # 60 segundos
-    backoff_multiplier=1.1,  # Backoff mínimo
-    max_backoff=3     # Backoff máximo ultra baixo para trading instantâneo
+    backoff_multiplier=1.5,  # Backoff moderado
+    max_backoff=10    # Backoff máximo 10 segundos
 ))
 
 TELEGRAM_LIMITER = SmartRateLimiter(RateLimitConfig(

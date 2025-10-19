@@ -369,8 +369,20 @@ class SniperBot:
             print(f"{Fore.CYAN}   WETH (trading): {weth_balance:.6f} WETH{Style.RESET_ALL}")
             print(f"{Fore.CYAN}   Trade amount: {trade_amount:.6f} WETH{Style.RESET_ALL}")
             
-            # Estratégia adaptativa para saldos baixos
+            # Verificar modo de emergência
+            emergency_mode = balance_eth < EMERGENCY_MODE_THRESHOLD
             min_eth_for_gas = 0.000002  # Mínimo mais realista
+            
+            if emergency_mode:
+                print(f"{Fore.YELLOW}🚨 MODO EMERGÊNCIA ATIVADO - ETH baixo: {balance_eth:.6f}{Style.RESET_ALL}")
+                trade_amount = min(trade_amount, EMERGENCY_TRADE_AMOUNT)
+                await self.telegram_bot.send_notification(
+                    f"🚨 **MODO EMERGÊNCIA**\n"
+                    f"⚠️ ETH baixo: {balance_eth:.6f}\n"
+                    f"💰 Trade reduzido: {trade_amount:.6f} WETH\n"
+                    f"🔧 Tentando conversão WETH->ETH...", 
+                    "high"
+                )
             
             # Se o saldo total é muito baixo, usar estratégia de micro-trades
             total_balance = balance_eth + weth_balance
