@@ -243,17 +243,33 @@ class AggressiveStrategy:
     async def check_quick_exit(self, token_address: str, position: Dict) -> bool:
         """Verifica se deve fazer saída rápida com lucro pequeno"""
         try:
-            # Simular verificação de preço (implementar com DEX real)
-            # Por enquanto, usar lógica baseada em tempo e volatilidade
+            # Obter preço atual do token
+            dex_handler = self.sniper_bot.dex_handler
+            buy_amount_wei = self.sniper_bot.web3.to_wei(position['buy_amount'], 'ether')
             
-            # Se passou do tempo de saída rápida e temos lucro pequeno, vender
-            current_profit = 0.08  # Simular 8% de lucro
-            
-            if current_profit >= self.quick_profit_threshold:
-                print(f"⚡ Saída rápida: {position['symbol']} com {current_profit*100:.1f}% lucro")
-                await self.execute_sell_strategy(token_address, f"Saída rápida ({current_profit*100:.1f}%)")
-                return True
+            # Tentar obter preço atual
+            try:
+                best_dex, current_value, router = await dex_handler.get_best_price(
+                    token_address, buy_amount_wei, is_buy=False
+                )
                 
+                if current_value > 0:
+                    current_value_eth = self.sniper_bot.web3.from_wei(current_value, 'ether')
+                    current_profit = (current_value_eth - position['buy_amount']) / position['buy_amount']
+                    
+                    print(f"💹 {position['symbol']}: Lucro atual {current_profit*100:.1f}%")
+                    
+                    # Saída rápida se lucro >= threshold
+                    if current_profit >= self.quick_profit_threshold:
+                        print(f"⚡ SAÍDA RÁPIDA: {position['symbol']} com {current_profit*100:.1f}% de lucro")
+                        await self.execute_sell_strategy(token_address, f"Saída rápida ({current_profit*100:.1f}%)")
+                        return True
+                else:
+                    print(f"⚠️ Não foi possível obter preço atual para {position['symbol']}")
+                    
+            except Exception as price_error:
+                print(f"⚠️ Erro ao verificar preço de {position['symbol']}: {str(price_error)}")
+            
             return False
             
         except Exception as e:

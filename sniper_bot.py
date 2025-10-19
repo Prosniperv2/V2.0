@@ -521,7 +521,8 @@ class SniperBot:
             )
             
             # Obter saldo do token
-            token_balance = await self._get_token_balance(token_address)
+            token_balance_wei = await self._get_token_balance_wei(token_address)
+            token_balance = await self._get_token_balance(token_address)  # Em formato decimal
             if token_balance == 0:
                 print(f"{Fore.RED}❌ Saldo do token é zero, cancelando venda{Style.RESET_ALL}")
                 await self.telegram_bot.send_notification(
@@ -543,33 +544,29 @@ class SniperBot:
                 "high"
             )
             
-            # Encontrar melhor preço para venda
+            # Encontrar melhor preço para venda (usar saldo em wei)
             best_dex, best_price, best_router = await self.dex_handler.get_best_price(
-                token_address, token_balance, is_buy=False
+                token_address, token_balance_wei, is_buy=False
             )
             
             if not best_dex:
-                print(f"{Fore.RED}❌ Não foi possível encontrar preço para venda{Style.RESET_ALL}")
-                await self.telegram_bot.send_notification(
-                    f"❌ **Venda cancelada!**\n"
-                    f"📛 {token_info['symbol']}\n"
-                    f"🚫 Nenhuma DEX disponível\n"
-                    f"💡 Sem liquidez para venda", 
-                    "high"
-                )
-                return
+                print(f"{Fore.YELLOW}⚠️ Preço não confirmado - executando venda agressiva{Style.RESET_ALL}")
+                # Não cancelar mais - modo agressivo sempre tenta
+                best_dex = "uniswap_v3"
+                best_router = self.dex_handler.dexs['uniswap_v3']['router']
             
             await self.telegram_bot.send_notification(
                 f"🎯 **Executando venda!**\n"
                 f"📛 {token_info['symbol']}\n"
                 f"🏪 DEX: {best_dex}\n"
+                f"💰 Saldo: {token_balance:.6f} tokens\n"
                 f"⚡ Enviando transação...", 
                 "high"
             )
             
-            # Executar venda
+            # Executar venda (usar saldo em wei)
             sell_tx_hash = await self.dex_handler.execute_swap(
-                token_address, token_balance, best_router, is_buy=False
+                token_address, token_balance_wei, best_router, is_buy=False
             )
             
             if sell_tx_hash:
@@ -606,8 +603,8 @@ class SniperBot:
                 "high"
             )
     
-    async def _get_token_balance(self, token_address: str) -> int:
-        """Obtém saldo do token"""
+    async def _get_token_balance_wei(self, token_address: str) -> int:
+        """Obtém saldo do token em wei (para uso interno)"""
         try:
             erc20_abi = [
                 {"constant": True, "inputs": [{"name": "_owner", "type": "address"}], 

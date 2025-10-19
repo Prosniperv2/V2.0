@@ -326,15 +326,33 @@ class DEXHandler:
     async def execute_swap(self, token_address: str, amount_in: int, router_address: str, 
                     is_buy: bool = True, slippage: float = SLIPPAGE_TOLERANCE) -> Optional[str]:
         """
-        Executa o swap na DEX especificada
+        Executa o swap na DEX especificada com melhor tratamento de erros
         Returns: transaction hash ou None se falhar
         """
         try:
-            import time  # Importar no início do método
+            import time
+            from eth_account import Account
             
-            # Verificar se precisa converter WETH para ETH para gas
-            if not await self.convert_weth_to_eth_if_needed(0.0001):
-                print("⚠️ Saldo ETH muito baixo e não foi possível converter WETH")
+            print(f"🔄 Iniciando swap: {'Compra' if is_buy else 'Venda'} de {self.web3.from_wei(amount_in, 'ether'):.6f} {'WETH' if is_buy else 'tokens'}")
+            
+            # Verificar saldos antes da transação
+            if is_buy:
+                weth_balance = await self.get_weth_balance()
+                required_weth = self.web3.from_wei(amount_in, 'ether')
+                if weth_balance < required_weth:
+                    print(f"❌ Saldo WETH insuficiente: {weth_balance:.6f} < {required_weth:.6f}")
+                    return None
+            
+            # Verificar ETH para gas
+            eth_balance = self.web3.eth.get_balance(WALLET_ADDRESS)
+            eth_balance_eth = self.web3.from_wei(eth_balance, 'ether')
+            min_eth_for_gas = 0.0005  # Aumentado para Base Network
+            
+            if eth_balance_eth < min_eth_for_gas:
+                print(f"⚠️ Saldo ETH baixo para gas: {eth_balance_eth:.6f}")
+                if not await self.convert_weth_to_eth_if_needed(min_eth_for_gas):
+                    print("❌ Não foi possível obter ETH suficiente para gas")
+                    return None
             
             router_contract = self.web3.eth.contract(
                 address=router_address,
@@ -342,13 +360,22 @@ class DEXHandler:
             )
             
             path = [WETH_ADDRESS, token_address] if is_buy else [token_address, WETH_ADDRESS]
-            deadline = int(time.time()) + 300  # 5 minutos
+            deadline = int(time.time()) + 600  # 10 minutos (aumentado)
             
-            # Calcular amount_out_min com slippage
+            # Calcular amount_out_min com slippage mais flexível
+            amount_out_min = 1  # Valor mínimo padrão para tokens novos
             try:
                 amounts = router_contract.functions.getAmountsOut(amount_in, path).call()
-                amount_out_min = int(amounts[-1] * (100 - slippage) / 100)
-            except Exception as e:
+                if len(amounts) >= 2 and amounts[-1] > 0:
+                    # Usar slippage mais agressivo para memecoins
+                    effective_slippage = min(slippage + 5, 25)  # +5% extra, máximo 25%
+                    amount_out_min = int(amounts[-1] * (100 - effective_slippage) / 100)
+                    print(f"💰 Preço estimado: {amounts[-1]} tokens (slippage: {effective_slippage}%)")
+                else:
+                    print("⚠️ Não foi possível calcular preço exato, usando valor mínimo")
+            except Exception as price_error:
+                print(f"⚠️ Erro ao calcular preço: {str(price_error)[:50]}... Usando valor mínimo")
+                # Para tokens muito novos, usar valor mínimo
                 print(f"⚠️ Não foi possível calcular preço exato - usando estimativa agressiva")
                 # Para tokens muito novos, usar valor mínimo muito baixo
                 amount_out_min = 1  # Aceitar qualquer quantidade de tokens
@@ -459,15 +486,58 @@ class DEXHandler:
                     'nonce': self.web3.eth.get_transaction_count(WALLET_ADDRESS)
                 })
             
-            # Assinar e enviar transação
-            signed_txn = self.web3.eth.account.sign_transaction(transaction, PRIVATE_KEY)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            # Assinar e enviar transação com retry logic
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # Atualizar nonce para cada tentativa
+                    transaction['nonce'] = self.web3.eth.get_transaction_count(WALLET_ADDRESS)
+                    
+                    signed_txn = self.web3.eth.account.sign_transaction(transaction, PRIVATE_KEY)
+                    tx_hash = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    
+                    print(f"🚀 Transação enviada: {tx_hash.hex()}")
+                    
+                    # Aguardar confirmação básica
+                    try:
+                        receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+                        if receipt.status == 1:
+                            print(f"✅ Transação confirmada com sucesso!")
+                            return tx_hash.hex()
+                        else:
+                            print(f"❌ Transação falhou na blockchain")
+                            return None
+                    except Exception as wait_error:
+                        print(f"⚠️ Timeout aguardando confirmação: {wait_error}")
+                        # Retornar hash mesmo sem confirmação para monitoramento
+                        return tx_hash.hex()
+                    
+                except Exception as send_error:
+                    print(f"❌ Tentativa {attempt + 1}/{max_retries} falhou: {str(send_error)}")
+                    if attempt < max_retries - 1:
+                        # Aguardar antes da próxima tentativa
+                        await asyncio.sleep(2)
+                        # Aumentar gas price para próxima tentativa
+                        if 'gasPrice' in transaction:
+                            transaction['gasPrice'] = int(transaction['gasPrice'] * 1.2)
+                    else:
+                        print(f"❌ Todas as tentativas falharam")
+                        return None
             
-            print(f"🚀 Transação enviada: {tx_hash.hex()}")
-            return tx_hash.hex()
+            return None
             
         except Exception as e:
-            print(f"❌ Erro ao executar swap: {str(e)}")
+            error_msg = str(e)
+            print(f"❌ Erro crítico ao executar swap: {error_msg}")
+            
+            # Log detalhado para debugging
+            if "insufficient funds" in error_msg.lower():
+                print("💡 Dica: Verifique se há saldo suficiente para gas e tokens")
+            elif "execution reverted" in error_msg.lower():
+                print("💡 Dica: Token pode não ter liquidez ou ter restrições de trading")
+            elif "nonce too low" in error_msg.lower():
+                print("💡 Dica: Problema de nonce, tentando novamente...")
+            
             return None
     
     def check_liquidity(self, token_address: str) -> Dict[str, float]:
@@ -539,3 +609,111 @@ class DEXHandler:
         print(f"📊 Resultado: {working_count}/{total_count} DEXs funcionando")
         
         return results
+    
+    async def approve_token_if_needed(self, token_address: str, router_address: str, amount: int) -> bool:
+        """
+        Aprova token para o router se necessário
+        Returns: True se aprovação foi bem-sucedida ou não necessária
+        """
+        try:
+            token_abi = [
+                {"constant": True, "inputs": [{"name": "_owner", "type": "address"}, {"name": "_spender", "type": "address"}], "name": "allowance", "outputs": [{"name": "", "type": "uint256"}], "type": "function"},
+                {"constant": False, "inputs": [{"name": "_spender", "type": "address"}, {"name": "_value", "type": "uint256"}], "name": "approve", "outputs": [{"name": "", "type": "bool"}], "type": "function"}
+            ]
+            
+            token_contract = self.web3.eth.contract(address=token_address, abi=token_abi)
+            
+            # Verificar allowance atual
+            current_allowance = token_contract.functions.allowance(WALLET_ADDRESS, router_address).call()
+            
+            if current_allowance >= amount:
+                print(f"✅ Token já aprovado: {current_allowance} >= {amount}")
+                return True
+            
+            print(f"🔓 Aprovando token {token_address[:10]}... para {amount}")
+            
+            # Preparar transação de aprovação
+            approve_tx = token_contract.functions.approve(
+                router_address,
+                amount * 10  # Aprovar 10x mais para evitar múltiplas aprovações
+            ).build_transaction({
+                'from': WALLET_ADDRESS,
+                'gas': 100000,
+                'gasPrice': self.web3.to_wei(MAX_GAS_PRICE, 'gwei'),
+                'nonce': self.web3.eth.get_transaction_count(WALLET_ADDRESS)
+            })
+            
+            # Assinar e enviar
+            signed_tx = self.web3.eth.account.sign_transaction(approve_tx, PRIVATE_KEY)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            print(f"🔓 Aprovação enviada: {tx_hash.hex()}")
+            
+            # Aguardar confirmação
+            try:
+                receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+                if receipt.status == 1:
+                    print(f"✅ Token aprovado com sucesso!")
+                    return True
+                else:
+                    print(f"❌ Aprovação falhou")
+                    return False
+            except Exception as wait_error:
+                print(f"⚠️ Timeout na aprovação, mas pode ter sido processada")
+                return True  # Assumir sucesso para continuar
+                
+        except Exception as e:
+            print(f"❌ Erro ao aprovar token: {str(e)}")
+            return False
+    
+    async def get_token_balance(self, token_address: str) -> float:
+        """Obtém saldo de um token específico"""
+        try:
+            token_abi = [
+                {"constant": True, "inputs": [{"name": "_owner", "type": "address"}], "name": "balanceOf", "outputs": [{"name": "balance", "type": "uint256"}], "type": "function"},
+                {"constant": True, "inputs": [], "name": "decimals", "outputs": [{"name": "", "type": "uint8"}], "type": "function"}
+            ]
+            
+            token_contract = self.web3.eth.contract(address=token_address, abi=token_abi)
+            
+            balance_wei = token_contract.functions.balanceOf(WALLET_ADDRESS).call()
+            
+            try:
+                decimals = token_contract.functions.decimals().call()
+            except:
+                decimals = 18  # Padrão
+            
+            balance = balance_wei / (10 ** decimals)
+            return float(balance)
+            
+        except Exception as e:
+            print(f"❌ Erro ao obter saldo do token: {e}")
+            return 0.0
+    
+    async def estimate_gas_for_swap(self, token_address: str, amount_in: int, router_address: str, is_buy: bool = True) -> int:
+        """Estima gas necessário para o swap"""
+        try:
+            router_contract = self.web3.eth.contract(
+                address=router_address,
+                abi=self.get_router_abi()
+            )
+            
+            path = [WETH_ADDRESS, token_address] if is_buy else [token_address, WETH_ADDRESS]
+            deadline = int(time.time()) + 300
+            
+            if is_buy:
+                gas_estimate = router_contract.functions.swapExactTokensForTokens(
+                    amount_in, 1, path, WALLET_ADDRESS, deadline
+                ).estimate_gas({'from': WALLET_ADDRESS})
+            else:
+                gas_estimate = router_contract.functions.swapExactTokensForTokens(
+                    amount_in, 1, path, WALLET_ADDRESS, deadline
+                ).estimate_gas({'from': WALLET_ADDRESS})
+            
+            # Adicionar margem de segurança
+            return int(gas_estimate * 1.2)
+            
+        except Exception as e:
+            print(f"⚠️ Não foi possível estimar gas: {e}")
+            # Retornar valor padrão
+            return DEFAULT_GAS_LIMIT

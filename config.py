@@ -16,12 +16,12 @@ CHAIN_ID = int(os.getenv('CHAIN_ID', '8453'))
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 WALLET_ADDRESS = os.getenv('WALLET_ADDRESS')
 
-# Trading Configuration - OTIMIZADO PARA 0.001990 WETH - MODO CRESCIMENTO RÁPIDO
+# Trading Configuration - OTIMIZADO PARA BASE NETWORK - MODO CRESCIMENTO RÁPIDO
 INITIAL_WETH_BALANCE = float(os.getenv('INITIAL_WETH_BALANCE', '0.001990'))  # Saldo inicial real
 TRADE_AMOUNT_WETH = float(os.getenv('TRADE_AMOUNT_WETH', '0.000398'))  # 20% do saldo (agressivo para crescimento)
-MAX_GAS_PRICE = int(os.getenv('MAX_GAS_PRICE', '25'))  # Otimizado para Base Network
-SLIPPAGE_TOLERANCE = float(os.getenv('SLIPPAGE_TOLERANCE', '15'))  # Aumentado para memecoins voláteis
-MAX_PRIORITY_FEE = int(os.getenv('MAX_PRIORITY_FEE', '2'))  # Balanceado para velocidade vs custo
+MAX_GAS_PRICE = int(os.getenv('MAX_GAS_PRICE', '50'))  # Aumentado para Base Network (mais competitivo)
+SLIPPAGE_TOLERANCE = float(os.getenv('SLIPPAGE_TOLERANCE', '20'))  # Aumentado para memecoins muito voláteis
+MAX_PRIORITY_FEE = int(os.getenv('MAX_PRIORITY_FEE', '5'))  # Aumentado para velocidade na Base Network
 
 # Sistema de Crescimento Inteligente - CONFIGURAÇÃO AGRESSIVA
 SMART_SCALING_ENABLED = os.getenv('SMART_SCALING_ENABLED', 'true').lower() == 'true'
@@ -95,9 +95,11 @@ UNISWAP_V3_FACTORY = "0x33128a8fC17869897dcE68Ed026d694621f6FDfD"
 AERODROME_FACTORY = "0x420DD381b31aEf6683db6B902084cB0FFECe40Da"
 BASESWAP_FACTORY = "0xFDa619b6d20975be80A10332cD39b9a4b0FAa8BB"
 
-# Gas Configuration
-DEFAULT_GAS_LIMIT = 300000
-PRIORITY_GAS_LIMIT = 500000
+# Gas Configuration - OTIMIZADO PARA BASE NETWORK
+DEFAULT_GAS_LIMIT = 400000  # Aumentado para Base Network
+PRIORITY_GAS_LIMIT = 600000  # Aumentado para transações complexas
+APPROVAL_GAS_LIMIT = 100000  # Gas específico para aprovações
+SWAP_GAS_LIMIT = 350000     # Gas específico para swaps
 
 def validate_config():
     """Validate essential configuration"""
