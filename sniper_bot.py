@@ -372,7 +372,7 @@ class SniperBot:
             
             # Verificar modo de emergência
             emergency_mode = balance_eth < EMERGENCY_MODE_THRESHOLD
-            min_eth_for_gas = 0.000002  # Mínimo mais realista
+            min_eth_for_gas = 0.000001  # Mínimo ultra baixo após conversão automática
             
             if emergency_mode:
                 print(f"{Fore.YELLOW}🚨 MODO EMERGÊNCIA ATIVADO - ETH baixo: {balance_eth:.6f}{Style.RESET_ALL}")
@@ -384,6 +384,23 @@ class SniperBot:
                     f"🔧 Tentando conversão WETH->ETH...", 
                     "high"
                 )
+                
+                # FORÇAR conversão WETH->ETH quando em modo emergência
+                print(f"{Fore.CYAN}🔄 Forçando conversão WETH->ETH para modo emergência...{Style.RESET_ALL}")
+                conversion_success = await self.dex_handler.convert_weth_to_eth_if_needed(0.00005)  # Forçar conversão
+                
+                if conversion_success:
+                    # Atualizar saldo ETH após conversão
+                    balance_eth = self.web3.from_wei(self.web3.eth.get_balance(WALLET_ADDRESS), 'ether')
+                    print(f"{Fore.GREEN}✅ Conversão realizada! Novo saldo ETH: {balance_eth:.6f}{Style.RESET_ALL}")
+                    await self.telegram_bot.send_notification(
+                        f"✅ **Conversão WETH->ETH realizada!**\n"
+                        f"💰 Novo saldo ETH: {balance_eth:.6f}\n"
+                        f"🚀 Continuando com o trade...", 
+                        "medium"
+                    )
+                else:
+                    print(f"{Fore.YELLOW}⚠️ Conversão WETH->ETH não realizada - continuando com saldo atual{Style.RESET_ALL}")
             
             # Se o saldo total é muito baixo, usar estratégia de micro-trades
             total_balance = balance_eth + weth_balance
