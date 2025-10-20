@@ -5,6 +5,7 @@ Otimizada para saldos pequenos (0.001990 WETH) com foco em lucros rápidos e alt
 
 import asyncio
 import time
+import random
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import logging
